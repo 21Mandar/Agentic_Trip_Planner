@@ -5,6 +5,8 @@
 
 import logging
 import os
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 
@@ -50,8 +52,9 @@ trip_agent = create_agent(
 
 def ask(text: str, thread: str) -> dict:
     """One turn of the conversation. The same thread keeps the memory."""
+    today = datetime.now(ZoneInfo("America/New_York")).strftime("%A %Y-%m-%d")
     return trip_agent.invoke(
-        {"messages": [HumanMessage(content=text)]},
+        {"messages": [HumanMessage(content=f"[Today is {today}.] {text}")]},
         {"configurable": {"thread_id": thread}},
     )
 

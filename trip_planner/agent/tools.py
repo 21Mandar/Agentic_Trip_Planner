@@ -8,6 +8,7 @@ Two rules, the same ones from the Husky Tech agent:
 
 import os
 from datetime import date, datetime, timedelta
+from zoneinfo import ZoneInfo
 
 import requests
 from langchain.tools import tool
@@ -129,6 +130,8 @@ def get_weather(city: str, date: str = "") -> str:
     if date not in days:
         return f"The forecast for '{label}' does not exist for {date}. Only the next {FORECAST_DAYS} days, between {days[0]} and {days[-1]} can be forecast."
 
+    weekday = datetime.strptime(date, "%Y-%m-%d").strftime("%A")
+    
     i = days.index(date)
     code = daily["weather_code"][i]
     conditions = WEATHER_CODES.get(code, f"code {code}")
@@ -142,7 +145,7 @@ def get_weather(city: str, date: str = "") -> str:
     else:
         chance_text = f"there is a {rain_chance}% chance of rain"
 
-    return f"The forecast for '{label}' on {date} is {conditions}, with a high of {high}°C, a low of {low}°C, and {rain}mm of rain ({chance_text}).{note}"
+    return f"The forecast for '{label}' on {weekday} {date} is {conditions}, with a high of {high}°C, a low of {low}°C, and {rain}mm of rain ({chance_text}).{note}"
 
 @tool
 def find_attractions(city: str, interest: str = "") -> str:
@@ -206,8 +209,9 @@ def find_events(city: str, date: str = "", category: str = "") -> str:
             "size": 20,
             "sort": "date,asc",
         }
-        start_date = f"{date}T00:00:00" if date else datetime.now().strftime("%Y-%m-%dT00:00:00")
-        end_date = f"{date}T23:59:59" if date else (datetime.now() + timedelta(days=7)).strftime("%Y-%m-%dT23:59:59")
+        now = datetime.now(ZoneInfo("America/New_York"))
+        start_date = f"{date}T00:00:00" if date else now.strftime("%Y-%m-%dT00:00:00")
+        end_date = f"{date}T23:59:59" if date else (now + timedelta(days=7)).strftime("%Y-%m-%dT23:59:59")
         params["localStartDateTime"] = f"{start_date},{end_date}"
 
         if category:
