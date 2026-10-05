@@ -28,6 +28,7 @@ from langchain.agents import create_agent
 from langchain.messages import HumanMessage
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import InMemorySaver
+from langchain.agents.middleware import dynamic_prompt
 
 from .tools import get_weather, get_transit_info, find_events, find_attractions, find_restaurants           # your five tools
 from .prompts import SYSTEM_PROMPT
@@ -42,10 +43,15 @@ model = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite")
 # from langchain_ollama import ChatOllama
 # model = ChatOllama(model="qwen3.5:4b", reasoning=False)
 
+@dynamic_prompt
+def prompt_with_date(request) -> str:
+    today = datetime.now(ZoneInfo("America/New_York")).strftime("%A %Y-%m-%d")
+    return f"[Today is {today}.]\n\n" + SYSTEM_PROMPT
+
 trip_agent = create_agent(
     model,
     TOOLS,
-    system_prompt=SYSTEM_PROMPT,
+    middleware=[prompt_with_date],
     checkpointer=InMemorySaver()
 )
 
@@ -54,7 +60,7 @@ def ask(text: str, thread: str) -> dict:
     """One turn of the conversation. The same thread keeps the memory."""
     today = datetime.now(ZoneInfo("America/New_York")).strftime("%A %Y-%m-%d")
     return trip_agent.invoke(
-        {"messages": [HumanMessage(content=f"[Today is {today}.] {text}")]},
+        {"messages": [HumanMessage(content=text)]},
         {"configurable": {"thread_id": thread}},
     )
 
