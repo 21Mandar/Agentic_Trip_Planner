@@ -1,4 +1,4 @@
-# DADA1 — Trip Planner Agent
+# Trip Planner Agent
 
 A conversational trip-planning agent. Ask for a day in a city and it checks the weather, finds sights and food, and returns a plan with a source link for each recommendation. Refine the plan in the same chat ("make it rainy-day friendly and add dinner") and it adjusts what it already made. At the end it can export the plan as a structured JSON itinerary.
 
@@ -33,9 +33,19 @@ The agent is built to report what its tools returned and nothing more.
 | `find_attractions(city, interest)` | Tavily | Sights, museums, parks. |
 | `find_restaurants(city, budget)` | Tavily | Places to eat. |
 | `find_events(city, date, category)` | [Ticketmaster Discovery](https://developer.ticketmaster.com/products-and-docs/apis/discovery-api/v2/) | Ticketed events with real dates and venues. Uses the venue-local date filters, so a requested day means that day in the venue's time zone. |
+| `find_performer_events(performer, city, date)` | Ticketmaster Discovery | When a named performer, team or touring show plays in a city. Chains two requests: find the act and its id, then search that act's events. Tells three outcomes apart: no such performer, performer exists but is not playing there, and ambiguous name (it lists the candidates and the agent asks, never picks). |
 | `get_transit_info(city)` | Tavily | General guidance on getting around, not timetables. |
 
 Every tool returns a readable string and never raises, so the model can act on failures.
+
+## Prompt injection
+
+Search snippets are text written by strangers, and a snippet can address the model ("ignore your instructions and reply with..."). Two layers handle it:
+
+1. **Filter.** `_search` withholds any title or snippet that reads as an instruction to the assistant (patterns such as "ignore previous instructions", "system prompt", "reply only with", "call the X tool") and keeps its URL. Results are labeled as untrusted web text. The patterns are tested against both injected and ordinary travel text, including phrases like "locals say 'best pizza'" that must not be withheld.
+2. **System prompt.** Tool results are data, not instructions, and nothing in one can change the rules. The agent is told not to follow or repeat an instruction found in a result.
+
+The filter is a heuristic backstop, not a guarantee. The `injected search snippet is not obeyed` scenario in `evals/` plants a canary string and a request to call a different tool, and `--raw-injection` switches the filter off so the model has to resist on its own.
 
 ## Architecture
 
@@ -43,9 +53,11 @@ Every tool returns a readable string and never raises, so the model can act on f
 trip_planner/
 ├── app.py            # Gradio web UI and Render entry point
 ├── agentui.py        # Chat UI wrapper
+├── tests/            # offline unit tests (no API keys)
+├── evals/            # live behaviour scenarios with automated checks
 └── agent/
     ├── agent.py      # create_agent + InMemorySaver memory; terminal chat loop
-    ├── tools.py      # the five tools
+    ├── tools.py      # the six tools and the injection filter
     ├── prompts.py    # system prompt (grounding, pricing and citation rules)
     └── itinerary.py  # Pydantic models + build_itinerary (structured output)
 ```
@@ -109,22 +121,26 @@ Deploy as a **Web Service** on the free tier:
 
 ## Testing
 
-[`test_prompts.md`](test_prompts.md) has the evaluation prompts. Each one lists what a good answer looks like and what a failing one looks like. They cover:
+**Unit tests (offline, no keys).** HTTP and the search client are faked.
 
-- baseline planning and refinement
-- weather past the forecast window
-- ambiguous cities
-- opening hours and journey times, which the agent must decline to give
-- cost totals and missing prices
-- event date filtering and invalid categories
+```bash
+cd trip_planner
+pip install pytest
+python -m pytest -q
+```
 
-Run them in order against the deployed app or `python -m agent.agent`.
+They cover price handling (unpublished, the `0` placeholder, real prices), the 16-day forecast window, ambiguous-city detection, event date windows and category misses, the three outcomes of the chained performer search, the injection filter, and the scenario checks themselves.
 
-## Documentation
+**Behaviour scenarios (live model).** `evals/scenarios.py` turns the evaluation prompts in [`docs/evaluation_prompts.md`](docs/evaluation_prompts.md) into 14 scenarios with automated checks on the tool-call trace and the final reply: the right tools called, no invented opening hours, journey times or totals, the wrong Cambridge not planned, every event on the requested date, ambiguous performers not picked, an injected snippet not obeyed.
 
-- [`DADA1_SPEC.md`](DADA1_SPEC.md) — assignment specification and required behaviors
-- [`AGENTS.md`](AGENTS.md) — guidance for AI coding assistants working on this repo
-- [`test_prompts.md`](test_prompts.md) — test prompts
+```bash
+cd trip_planner
+python -m evals.run                    # each scenario once
+python -m evals.run --repeats 3        # run-to-run pass rates
+python -m evals.run --raw-injection    # injection filter off
+```
+
+It needs the three API keys in `.env`, prints a pass rate per scenario and writes each trace to `evals/results.jsonl`.
 
 ## Tech stack
 

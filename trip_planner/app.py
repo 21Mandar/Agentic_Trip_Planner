@@ -4,7 +4,7 @@
 
 On Render this file is what the service runs. Render sets $PORT and expects the
 process to listen on 0.0.0.0, which is the only difference from running locally.
-See DADA1_SPEC.md section 7 for the Render settings.
+The Render settings are in the README.
 """
 
 import os

@@ -30,16 +30,18 @@ from langchain_google_genai import ChatGoogleGenerativeAI
 from langgraph.checkpoint.memory import InMemorySaver
 from langchain.agents.middleware import dynamic_prompt
 
-from .tools import get_weather, get_transit_info, find_events, find_attractions, find_restaurants           # your five tools
+from .tools import (find_attractions, find_events, find_performer_events,
+                    find_restaurants, get_transit_info, get_weather)
 from .prompts import SYSTEM_PROMPT
 
-TOOLS = [get_weather, get_transit_info, find_events, find_attractions, find_restaurants]                    # a list of the five tools
+TOOLS = [get_weather, get_transit_info, find_events, find_performer_events,
+         find_attractions, find_restaurants]
 
-# You must use an API model for online deployment. Otherwise, we cannot test it properly.
-# Options: Gemini, OpenRouter, NVIDIA as posted on Piazza
+# A hosted model is needed for the deployed app (Gemini here; OpenRouter or
+# NVIDIA endpoints also work if you swap this line).
 model = ChatGoogleGenerativeAI(model="gemini-3.5-flash-lite")
 
-# Local alternative for testing during development
+# Local alternative for development
 # from langchain_ollama import ChatOllama
 # model = ChatOllama(model="qwen3.5:4b", reasoning=False)
 
@@ -58,7 +60,6 @@ trip_agent = create_agent(
 
 def ask(text: str, thread: str) -> dict:
     """One turn of the conversation. The same thread keeps the memory."""
-    today = datetime.now(ZoneInfo("America/New_York")).strftime("%A %Y-%m-%d")
     return trip_agent.invoke(
         {"messages": [HumanMessage(content=text)]},
         {"configurable": {"thread_id": thread}},

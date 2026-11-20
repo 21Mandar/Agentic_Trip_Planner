@@ -1,8 +1,9 @@
 """Trip planner: the structured itinerary.
 
-To be used to extract one typed itinerary from the conversation.
+Extracts one typed itinerary (Itinerary -> DayPlan -> Activity) from the
+conversation.
 
-Please note `cost` is a STRING, not a number, so that
+`cost` is a STRING, not a number, so that
 "unknown" is something the itinerary can actually say, and so a price can carry
 where it came from. If it were a float the model would have to invent a figure
 to fill it, and a made-up price looks exactly like a real one.
@@ -28,9 +29,6 @@ class Activity(BaseModel):
     source: str = Field(description="The URL this came from, or 'none' if there isn't one")
 
 
-# TODO: write DayPlan. One day of the trip: a date, what the weather said, and a
-# list of Activity. An itinerary is a list of days, each holding a list of
-# activities — one level more nesting than W03a.2.
 class DayPlan(BaseModel):
     """One day of the trip."""
     date: str = Field(
@@ -66,9 +64,9 @@ ITINERARIES = []
 def build_itinerary(model, result) -> Itinerary:
     """Extract a structured itinerary from a finished planning conversation.
 
-    This is `file_ticket` from W03b.1 pointed at a trip. Build the transcript from
-    result["messages"], call model.with_structured_output(Itinerary) on it, append
-    to ITINERARIES, and return it.
+    Builds a transcript from result["messages"], runs
+    model.with_structured_output(Itinerary) over it, appends the result to
+    ITINERARIES and returns it.
     """
     transcript = "\n".join(
         f"{type(m).__name__}: {m.text}" for m in result["messages"] if m.text
